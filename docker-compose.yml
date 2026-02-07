@@ -1,0 +1,166 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for Evolution API
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for queue system
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Evolution API
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: evolution-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Server
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: http://localhost:8080
+      
+      # CORS
+      CORS_ORIGIN: "*"
+      CORS_METHODS: "GET,POST,PUT,DELETE"
+      CORS_CREDENTIALS: "true"
+      
+      # Database
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://postgres:postgres_password@postgres:5432/evolution
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      
+      # Authentication
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: evolution-api-key-change-this
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+      
+      # Webhook
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      WEBHOOK_GLOBAL_URL: ""
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+      
+      # Logs
+      LOG_LEVEL: ERROR,WARN,DEBUG,INFO,LOG,VERBOSE,DARK,WEBHOOKS
+      LOG_COLOR: "true"
+      LOG_BAILEYS: error
+      
+      # Instance
+      DEL_INSTANCE: "false"
+      
+      # QR Code
+      QRCODE_LIMIT: 30
+      QRCODE_COLOR: "#198754"
+      
+      # Storage (optional S3/MinIO)
+      # S3_ENABLED: "false"
+      # S3_ACCESS_KEY: ""
+      # S3_SECRET_KEY: ""
+      # S3_BUCKET: ""
+      # S3_ENDPOINT: ""
+      # S3_PORT: 443
+      # S3_USE_SSL: "true"
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  # WhatsApp to Google Drive Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp-gdrive-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Server
+      PORT: 3000
+      NODE_ENV: production
+      
+      # Evolution API
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: evolution-api-key-change-this
+      EVOLUTION_INSTANCE: whatsapp-instance
+      
+      # Webhook
+      WEBHOOK_SECRET: your-webhook-secret-change-this
+      
+      # Google Drive
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/service-account.json
+      GOOGLE_DRIVE_PARENT_FOLDER_ID: your-folder-id-here
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      
+      # File Upload
+      MAX_FILE_SIZE: 52428800
+      ALLOWED_FILE_TYPES: ""
+      
+      # Queue
+      QUEUE_CONCURRENCY: 5
+      QUEUE_MAX_ATTEMPTS: 3
+      
+      # Logging
+      LOG_LEVEL: info
+      
+    depends_on:
+      redis:
+        condition: service_healthy
+      evolution-api:
+        condition: service_started
+    networks:
+      - app-network
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./logs:/app/logs
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_instances:

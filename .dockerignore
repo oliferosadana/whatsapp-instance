@@ -1,0 +1,45 @@
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# TypeScript
+*.ts
+!*.d.ts
+tsconfig.json
+
+# Source
+src
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Environment
+.env*
+!.env.example
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# Documentation
+*.md
+!README.md
+
+# Misc
+.DS_Store
+Thumbs.db
