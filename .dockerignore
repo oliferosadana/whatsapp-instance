@@ -11,10 +11,10 @@ yarn-error.log
 # TypeScript
 *.ts
 !*.d.ts
-tsconfig.json
+!tsconfig.json
 
 # Source
-src
+#src
 
 # Git
 .git
